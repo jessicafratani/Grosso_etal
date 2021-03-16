@@ -1,0 +1,351 @@
+## Script S1
+## Description: Co-authorship Network Analysis
+## R v. 2.10.1 & RStudio v.  1.1.143
+
+# Load Libraries
+library(igraph)
+library(reshape)
+library(ggplot2)
+
+## Load data
+# Cuadernos de Herpetologia
+NET_CH <- read.csv("raw_networkCH.csv", header = FALSE) # Raw authorship data
+AUT.SEX <- read.csv("authors_CH.csv", header = TRUE) # Sexed database
+head(AUT.SEX)
+
+# SAJH
+NET_SAJH <- read.csv("raw_networkSAJH.csv", header = FALSE) # Raw authorship data
+AUT.SAJH <- read.csv("authors_SAJH.csv", header = TRUE) # Sexed database
+head(AUT.SAJH)
+
+###### Function - From matrix to edgelist ####
+Matrix2Edge <- function(x){
+  final <- data.frame("a"=character(),"b"=character()) #an empty dataframe to add the edge list to
+  
+  for (i in 1:(ncol(x)-1)){
+    id = paste("V", i, sep="")
+    edge_list <- melt(x, id = (id))
+    x[id] <- NULL
+    keeps <- c(id, "value")
+    edge_list <- edge_list[keeps]
+    colnames(edge_list) <- colnames(final)
+    final <- rbind(final,edge_list)
+  }
+  final <- final[!(final$b=="" | final$b==" "),]
+  return(final)
+}
+
+
+
+## 1: Cuadernos de Herpetologia ----
+
+# Convert matrix to edgelist
+edge_list <- Matrix2Edge(NET_CH) 
+## Convert edgelist to an igraph object
+gCUA <- graph.edgelist(as.matrix(edge_list), directed=FALSE)
+
+# Create a weighted network
+adj_cua <- as_adj(gCUA)
+gCUAw <- graph_from_adjacency_matrix(adj_cua, mode = "undirected", 
+                                          weighted = TRUE, diag = FALSE)
+E(gCUAw)$width <- E(gCUAw)$weight # link width = number of connections
+is.simple(gCUAw) # Check for multiple links
+
+# Create new edge attribute called 'SEX'
+V(gCUAw)$Sex=as.character(AUT.SEX$Sexo[match(V(gCUAw)$name,AUT.SEX$Autores)]) 
+# Set vertex color by gender
+V(gCUAw)$color <- ifelse(V(gCUAw)$Sex == "M", "#552583","#FDB927")
+
+which(is.na(V(gCUAw)$Sex)) # Check for empty values
+
+# Plot
+plot.igraph(gCUAw, vertex.label = NA, vertex.size=2.5, layout=layout_nicely)
+tkplot(gCUAw)
+
+## Decompose network and get only the most connected group of authors
+components(gCUAw, mode="strong")
+AA <- decompose(gCUAw, mode="weak", min.vertices=13)
+
+# Weighted "most-connected" network
+adj_cua <- as_adj(AA[[1]])
+gCUAsub <- graph_from_adjacency_matrix(adj_cua, mode = "undirected", 
+                                       weighted = TRUE, diag = FALSE)
+E(gCUAsub)$width <- E(gCUAsub)$weight  # link width = number of connections
+is.simple(gCUAsub) # Check for multiple links
+plot.igraph(gCUAsub, vertex.label = NA, vertex.size=2.5, layout=layout_nicely) # plot
+
+# Edge attribute for sex
+V(gCUAsub)$Sex=as.character(AUT.SEX$Sexo[match(V(gCUAsub)$name,AUT.SEX$Autores)]) 
+# Set vertex color by gender
+V(gCUAsub)$color <- ifelse(V(gCUAsub)$Sex == "M", "#552583","#FDB927")
+
+which(is.na(V(gCUAsub)$Sex)) # Check for empty values
+
+## Network parameters ----
+gsize(gCUAsub) #N edges
+gorder(gCUAsub) #N vertices
+graph.density(gCUAsub) # Density
+is.connected(gCUAsub)
+average.path.length(gCUAsub, V(gCUAsub), V(gCUAsub))
+mean_distance(gCUAsub, directed = F, unconnected = TRUE)
+mean_distance(gCUAsub, directed = F, unconnected = FALSE)
+diameter(gCUAsub, directed = F, weights = NA)
+transitivity(gCUAsub, type = "global")
+cluster_leading_eigen(gCUAsub) # modularity
+shortest.paths(gCUAsub, V(gCUAsub), V(gCUAsub))
+
+## Within module connectivity
+within_module_deg_z_score(gCUAsub, membership(cluster_leading_eigen(gCUAsub)))
+part_coeff(gCUAsub, membership(cluster_leading_eigen(gCUAsub)))
+
+# Assortativity index
+# Sex attribute as integer
+V(gCUAsub)$sex=as.integer(AUT.SEX$Sexo[match(V(gCUAsub)$name,AUT.SEX$Autores)]) 
+V(gCUAsub)$sex # men=1; women=2
+V(gCUAsub)$Sex
+assortativity.nominal(gCUAsub, V(gCUAsub)$sex, directed = F) # sex as integer
+assortativity_degree(gCUAsub, directed = F) # based on degree
+
+#### Node parameters ----
+degree(gCUAsub, mode = c("all"), loops = FALSE, normalized = FALSE) # number of connections
+betweenness(gCUAsub, directed =F)
+closeness(gCUAsub, mode = c("all"))
+eigen_centrality(gCUAsub)
+
+# Significance of parameters ----
+PCS <- read.csv(file="CHsub_parameters.csv")
+head(PCS)
+summary(PCS)
+
+# Degree
+mean(PCS$Degree)
+mean((subset(PCS,PCS$SEX=="H"))$Degree)
+mean((subset(PCS,PCS$SEX=="M"))$Degree)
+kruskal.test(Degree~SEX, data=PCS)
+
+# Betweeness
+mean(PCS$Betweenness)
+mean((subset(PCS,PCS$SEX=="H"))$Betweenness)
+mean((subset(PCS,PCS$SEX=="M"))$Betweenness)
+kruskal.test(Betweenness~SEX, data=PCS)
+  ## Graph
+PARCH_OR <- PCS[order(PCS$Betweenness, decreasing=TRUE),]
+BTW <- PARCH_OR[1:50,] # Keep 50 first values
+# Color by sex
+Bcolor <- BTW$SEX
+Bcolor <- gsub("M","#552583",Bcolor)
+Bcolor <- gsub("H","#FDB927",Bcolor)
+  barplot(BTW$Betweenness, ylab = "Betweenness Score", col = Bcolor)
+
+# Eigen-centrality
+mean(PCS$Eigen.Centrality)
+mean((subset(PCS,PCS$SEX=="H"))$Eigen.Centrality)
+mean((subset(PCS,PCS$SEX=="M"))$Eigen.Centrality)
+kruskal.test(Eigen.Centrality~SEX, data=PCS)
+
+# Transitivity
+mean((subset(PCS,PCS$SEX=="H"))$Transitivity..con.NAs., na.rm=TRUE)
+mean((subset(PCS,PCS$SEX=="M"))$Transitivity..con.NAs., na.rm=TRUE)
+kruskal.test(Transitivity..con.NAs.~SEX, data=PCS, na.action = na.omit)
+
+# Short path
+summary(PCS$Average.Shortest.Paths)
+mean((subset(PCS, PCS$SEX=="H"))$Average.Shortest.Paths)
+mean((subset(PCS, PCS$SEX=="M"))$Average.Shortest.Paths)
+kruskal.test(Average.Shortest.Paths~SEX, data=PCS)
+
+# Closeness
+mean((subset(PCS,PCS$SEX=="H"))$Closeness)
+mean((subset(PCS,PCS$SEX=="M"))$Closeness)
+boxplot(PCS$Closeness~PCS$SEX, ylab="Closeness", xlab="author sex", col=c("green", "orange"))
+kruskal.test(Closeness~SEX, data=PCS)
+
+# Intra module connectivity 
+mean((subset(PCS,PCS$SEX=="H"))$Intra.module.conectivity)
+mean((subset(PCS,PCS$SEX=="M"))$Intra.module.conectivity)
+boxplot(PCS$Intra.module.conectivity~PCS$SEX, ylab="Intra_mod_con", xlab="author sex", col=c("green", "orange"))
+kruskal.test(Intra.module.conectivity~SEX, data=PCS)
+
+# Part_index
+summary(PCS$participation.index)
+PDEXZ <- subset.data.frame(PCS, PCS$participation.index>0, # Select only those bigger than 0
+                           select=c(SEX, participation.index))
+mean((subset(PDEXZ,PDEXZ$SEX=="H"))$participation.index)
+mean((subset(PDEXZ,PDEXZ$SEX=="M"))$participation.index)
+boxplot(PDEXZ$participation.index~PDEXZ$SEX, ylab="part_index", xlab="author sex", col=c("green", "orange"))
+
+# Connections ----
+# Select edges based on vertex attributes ----
+# sex attribute as integer
+E(gCUAsub)[inc(V(gCUAsub)[sex==1])] # Men (1498/1956)
+E(gCUAsub)[inc(V(gCUAsub)[sex==2])] # Women (1423/1956)
+
+E(gCUAsub)[V(gCUAsub)[sex==2]%--%V(gCUAsub)[sex==2]] # 458 exclusive connection btw women
+E(gCUAsub)[V(gCUAsub)[sex==1]%--%V(gCUAsub)[sex==1]] # 533 exclusive connection btw men
+E(gCUAsub)[V(gCUAsub)[sex==1]%--%V(gCUAsub)[sex==2]] # 956 connections btw man and women
+
+# Graph -----
+SUMCONEC <- data.frame(con=c("HH","MM","HM"), value=c(533,533,956)) # Values above
+bp<- ggplot(SUMCONEC, aes(x="", y=value, fill=con))+
+  geom_bar(width = 1, stat = "identity")
+pie <- bp + coord_polar("y", start=0)
+pie + scale_fill_manual(values=c("#FDB927","red","#552583"))
+
+
+
+# 2: South American Journal of Herpetology ----
+
+# Convert matrix to edgelist
+edge_list <- Matrix2Edge(NET_SAJH) 
+## Convert edgelist to an igraph object
+gSAJH <- graph.edgelist(as.matrix(edge_list), directed=FALSE)
+
+# Create a weighted network
+adj_SAJH <- as_adj(gSAJH)
+gSAJHw <- graph_from_adjacency_matrix(adj_SAJH, mode = "undirected", 
+                                      weighted = TRUE, diag = FALSE)
+
+E(gSAJHw)$width <- E(gSAJHw)$weight # link width = number of connections
+is.simple(gSAJHw) # Check for multiple links
+
+# Create new edge attribute called 'SEX'
+V(gSAJHw)$Sex=as.character(AUT.SAJH$Sex[match(V(gSAJHw)$name,AUT.SAJH$ID)]) 
+# Set vertex color by gender
+V(gSAJHw)$color <- ifelse(V(gSAJHw)$Sex == "M", "#552583","#FDB927")
+
+which(is.na(V(gSAJHw)$Sex)) # Check for empty values
+
+# Plot
+plot.igraph(gSAJHw, vertex.label = NA, vertex.size=2.5, layout=layout_nicely)
+tkplot(gSAJHw)
+
+## Decompose network and get only the most connected group of authors
+components(gSAJHw, mode="strong")
+AA <- decompose(gSAJHw, mode="weak", min.vertices=35)
+
+# Weighted "most-connected" network
+adj_SAJH <- as_adj(AA[[1]])
+gSAJHsub <- graph_from_adjacency_matrix(adj_SAJH, mode = "undirected", 
+                                        weighted = TRUE, diag = FALSE)
+E(gSAJHsub)$width <- E(gSAJHsub)$weight  # link width = number of connections
+is.simple(gSAJHsub) # Check for multiple links
+
+# Edge attribute for sex
+V(gSAJHsub)$Sex=as.character(AUT.SAJH$Sex[match(V(gSAJHsub)$name,AUT.SAJH$ID)]) 
+# Set vertex color by gender
+V(gSAJHsub)$color <- ifelse(V(gSAJHsub)$Sex == "M", "#552583","#FDB927")
+
+which(is.na(V(gSAJHsub)$Sex)) # Check for empty values
+
+plot.igraph(gSAJHsub, vertex.label = NA, vertex.size=2.5, layout=layout_nicely) # plot
+
+## Network parameters ----
+gsize(gSAJHsub) #N edges
+gorder(gSAJHsub) #N vertices
+graph.density(gSAJHsub) # Density
+is.connected(gSAJHsub)
+average.path.length(gSAJHsub, V(gSAJHsub), V(gSAJHsub))
+mean_distance(gSAJHsub, directed = F, unconnected = TRUE)
+mean_distance(gSAJHsub, directed = F, unconnected = FALSE)
+diameter(gSAJHsub, directed = F, weights = NA)
+transitivity(gSAJHsub, type = "global")
+cluster_leading_eigen(gSAJHsub) # modularity
+shortest.paths(gSAJHsub, V(gSAJHsub), V(gSAJHsub))
+
+## Within module connectivity
+within_module_deg_z_score(gSAJHsub, membership(cluster_leading_eigen(gSAJHsub)))
+part_coeff(gSAJHsub, membership(cluster_leading_eigen(gSAJHsub)))
+
+# Assortativity index
+# Sex attribute as integer
+V(gSAJHsub)$sex=as.integer(AUT.SAJH$Sex[match(V(gSAJHsub)$name,AUT.SAJH$ID)]) 
+V(gSAJHsub)$sex # men=1; women=2
+V(gSAJHsub)$Sex
+assortativity.nominal(gCUASAJHsub, V(gSAJHsub)$sex, directed = F) # sex as integer
+assortativity_degree(gSAJHsub, directed = F) # based on degree
+
+#### Node parameters ----
+degree(gSAJHsub, mode = c("all"), loops = FALSE, normalized = FALSE) # number of connections
+betweenness(gSAJHsub, directed =F)
+closeness(gSAJHsub, mode = c("all"))
+eigen_centrality(gSAJHsub)
+
+# Significance of parameters ----
+PCS <- read.csv(file="SAJHsub_parameters.csv", sep=";")
+head(PCS)
+summary(PCS)
+
+# Degree
+mean(PCS$Degree)
+PCS$Degree
+mean((subset(PCS,PCS$SEX=="H"))$Degree)
+mean((subset(PCS,PCS$SEX=="M"))$Degree)
+kruskal.test(Degree~SEX, data=PCS)
+
+# Betweeness
+mean(PCS$Betweenness)
+mean((subset(PCS,PCS$SEX=="H"))$Betweenness)
+mean((subset(PCS,PCS$SEX=="M"))$Betweenness)
+kruskal.test(Betweenness~SEX, data=PCS)
+## Graph
+PARCH_OR <- PCS[order(PCS$Betweenness, decreasing=TRUE),]
+BTW <- PARCH_OR[1:50,] # Keep 50 first values
+# Color by sex
+Bcolor <- BTW$SEX
+Bcolor <- gsub("M","#552583",Bcolor)
+Bcolor <- gsub("H","#FDB927",Bcolor)
+barplot(BTW$Betweenness, ylab = "Betweenness Score", col = Bcolor)
+
+# Eigen-centrality
+mean(PCS$Eigen.Centrality)
+mean((subset(PCS,PCS$SEX=="H"))$Eigen.Centrality)
+mean((subset(PCS,PCS$SEX=="M"))$Eigen.Centrality)
+kruskal.test(Eigen.Centrality~SEX, data=PCS)
+
+# Transitivity
+mean((subset(PCS,PCS$SEX=="H"))$Transitivity..con.NAs., na.rm=TRUE)
+mean((subset(PCS,PCS$SEX=="M"))$Transitivity..con.NAs., na.rm=TRUE)
+kruskal.test(Transitivity..con.NAs.~SEX, data=PCS, na.action = na.omit)
+
+# Short path
+summary(PCS$Average.Shortest.Paths)
+mean((subset(PCS, PCS$SEX=="H"))$Average.Shortest.Paths)
+mean((subset(PCS, PCS$SEX=="M"))$Average.Shortest.Paths)
+kruskal.test(Average.Shortest.Paths~SEX, data=PCS)
+
+# Closeness
+mean((subset(PCS,PCS$SEX=="H"))$Closeness)
+mean((subset(PCS,PCS$SEX=="M"))$Closeness)
+boxplot(PCS$Closeness~PCS$SEX, ylab="Closeness", xlab="author sex", col=c("green", "orange"))
+kruskal.test(Closeness~SEX, data=PCS)
+
+# Intra module connectivity 
+mean((subset(PCS,PCS$SEX=="H"))$Intra.module.conectivity)
+mean((subset(PCS,PCS$SEX=="M"))$Intra.module.conectivity)
+boxplot(PCS$Intra.module.conectivity~PCS$SEX, ylab="Intra_mod_con", xlab="author sex", col=c("green", "orange"))
+kruskal.test(Intra.module.conectivity~SEX, data=PCS)
+
+# Part_index
+summary(PCS$participation.index)
+PDEXZ <- subset.data.frame(PCS, PCS$participation.index>0, # Select only those bigger than 0
+                           select=c(SEX, participation.index))
+mean((subset(PDEXZ,PDEXZ$SEX=="H"))$participation.index)
+mean((subset(PDEXZ,PDEXZ$SEX=="M"))$participation.index)
+boxplot(PDEXZ$participation.index~PDEXZ$SEX, ylab="part_index", xlab="author sex", col=c("green", "orange"))
+
+# Connections ----
+# Select edges based on vertex attributes ----
+# sex attribute as integer
+E(gSAJHsub)[inc(V(gSAJHsub)[sex==1])] # Men (1265/1396)
+E(gSAJHsub)[inc(V(gSAJHsub)[sex==2])] # Women (661/1396)
+
+E(gSAJHsub)[V(gSAJHsub)[sex==2]%--%V(gSAJHsub)[sex==2]] # 131 xclusive connection btw women
+E(gSAJHsub)[V(gSAJHsub)[sex==1]%--%V(gSAJHsub)[sex==1]] # 735 exclusive connection btw men
+E(gSAJHsub)[V(gSAJHsub)[sex==1]%--%V(gSAJHsub)[sex==2]] # 530 connections btw man and women
+
+# Graph -----
+SUMCONEC <- data.frame(con=c("HH","MM","HM"), value=c(131,735,530)) # Values above
+bp<- ggplot(SUMCONEC, aes(x="", y=value, fill=con))+
+  geom_bar(width = 1, stat = "identity")
+pie <- bp + coord_polar("y", start=0)
+pie + scale_fill_manual(values=c("#FDB927","red","#552583"))
