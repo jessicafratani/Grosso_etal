@@ -1,0 +1,281 @@
+## Script S2
+## Description: Journals Analysis 
+## R v. 2.10.1 & RStudio v.  1.1.143
+
+# Load libraries
+library(dplyr)
+library(ggplot2)
+
+## 1: Editorial boards -Jaccard Index -----
+a=ar$  #journal "a"
+b=ar$  #journal "a"
+n1a=sum(a)
+n1b=sum(b)
+n11=0
+for (i in 1:length(b)) {
+  if (b[i]== 1 && a[i] == 1) {
+    n11=n11+1
+    }
+}
+J<-n11/(n1a+n1b-n11)
+
+## 2: General authorship participation % -----
+# Load data
+base <- read.csv("Journals2018-19_Base.csv", header = T)
+head(base)
+summary(base) # general summary
+sum(base$Nfem)*100/sum(base$Ntot) # average female authorship
+
+
+# 2.1 % by taxonomic group (amphibians and reptiles)----
+# select only papers with a well defined work group
+Atest <- base[which(base$Group != "anfibios+reptiles"), ] 
+Atest$Group <- droplevels(Atest$Group)
+summary(Atest)
+
+# Balance sample by least represented work group:
+ABtest <- Atest %>% 
+  group_by(Group) %>% 
+  sample_n(165)
+
+tapply(ABtest$P.autoras, ABtest$Group, mean) # means/area raw data
+summary(glm(P.autoras~Group, family=quasibinomial, data=ABtest))  # Prop
+
+
+# 2.2: % by area ----
+# Ecology, Biogeography, Morphology, Behaviour, Systematics)
+summary(base$Area)
+AStest <- base[which(base$Area %in%c("ecologia","biogeografia","morfologia",
+                                       "comportamiento","sistematica")), ]
+AStest$Area<-droplevels(AStest$Area)
+summary(AStest)
+
+area_means <- tapply(AStest$P.autoras, AStest$Area, mean) # Average of women % by area
+area_means
+# plot
+ggplot(AStest, aes(y = P.autoras, x = Area)) + 
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Balance sample by least represented area:
+ASBT <- AStest %>% 
+  group_by(Area) %>% 
+  sample_n(41)
+
+tapply(ASBT$P.autoras, ASBT$Area, mean) # Check means in the sample are similar with base data
+
+levels(ASBT$Area)
+ASBT$Area <- relevel(ASBT$Area, "biogeografia") # re order levels to compare all possible combinations
+fit.area <- glm(P.autoras~Area, family=quasibinomial, data=ASBT)  # Prop
+summary(fit.area)
+
+
+
+## 3: Multiple-authored papers -----
+# Load data -  
+multi <- read.csv("Journals2018-19_multiple auth.csv", header = T)
+head(multi)
+summary(multi)
+
+
+# 3.1: First author gender influence on female % ----
+# General
+tapply(multi$Prop_female_FA, multi$SexoFA, mean) # Female % by first author
+
+# Balance sample by least represented first author (n=119)
+set.seed(123)
+datPA <- multi %>% 
+  group_by(SexoFA) %>% 
+  sample_n(119)
+
+Q3A <-glm(Prop_female_FA~SexoFA,family=quasibinomial,data=multi)
+summary(Q3A) # significative difference
+
+  # By Q:
+#Q1
+Q1test <- multi[which(multi$Q == "1"), ] # all except the non-ranked journal
+summary(Q1test)
+Q1test$Q<- droplevels(Q1test$Q)
+summary(Q1test)
+# Balance first author sample size (n=22)
+set.seed(123)
+Q1testBAL <- Q1test %>% 
+  group_by(SexoFA) %>% 
+  sample_n(25)
+summary(glm(Prop_female_FA~SexoFA,family=quasibinomial,data=Q1testBAL))
+#plot
+Q1 <- ggplot(Q1test, aes(y = Prop_female_FA, x = SexoFA)) +  ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q1") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+#Q2
+Q2test <- multi[which(multi$Q == "2"), ]
+Q2test$Q<- droplevels(Q2test$Q)
+summary(Q2test) # check number of obs
+# Balance first author sample size (n=22)
+set.seed(123)
+Q2testBAL <- Q2test %>% 
+  group_by(SexoFA) %>% 
+  sample_n(22)
+summary(glm(Prop_female_FA~SexoFA,family=quasibinomial,data=Q2testBAL))
+#plot
+Q2 <- ggplot(Q2test, aes(y = Prop_female_FA, x = SexoFA)) +  ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q2") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+#Q3
+Q3test <- multi[which(multi$Q == "3"), ]
+Q3test$Q<- droplevels(Q3test$Q)
+summary(Q3test)
+# Sample subgroups of equal size (n=24)
+set.seed(123)
+Q3testBAL <- Q3test %>% 
+  group_by(SexoFA) %>% 
+  sample_n(24)
+summary(glm(Prop_female_FA~SexoFA,family=quasibinomial,data=Q3testBAL))
+#plot
+Q3 <- ggplot(Q3test, aes(y = Prop_female_FA, x = SexoFA)) +  ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q3") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+#Q4
+Q4test <- multi[which(multi$Q == "4"), ]
+Q4test$Q<- droplevels(Q4test$Q)
+summary(Q4test)
+# Sample subgroups of equal size (n=50)
+set.seed(123)
+Q4testBAL <- Q4test %>% 
+  group_by(SexoFA) %>% 
+  sample_n(40)
+summary(glm(Prop_female_FA~SexoFA,family=quasibinomial,data=Q4testBAL))
+#plot
+Q4 <- ggplot(Q4test, aes(y = Prop_female_FA, x = SexoFA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q4") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+#NI
+NItest <- multi[which(multi$Q == "NI"), ]
+NItest$Q<- droplevels(NItest$Q)
+summary(NItest)
+# Sample subgroups of equal size (n=8)
+set.seed(123)
+NItestBAL <- NItest %>% 
+  group_by(SexoFA) %>% 
+  sample_n(8)
+summary(glm(Prop_female_FA~SexoFA,family=quasibinomial,data=NItestBAL))
+#plot
+NI <- ggplot(NItest, aes(y = Prop_female_FA, x = SexoFA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="CH") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+require(gridExtra)
+grid.arrange(Q1,Q2,Q3,Q4,NI, ncol=5)
+
+
+# 3.2: Last author gender influence on female % ----
+# General
+tapply(multi$Prop_female_LA, multi$SexoLA, mean)
+# Balance sample by least represented last author (n=95)
+#general question
+set.seed(123)
+datUA <- multi %>% 
+  group_by(SexoLA) %>% 
+  sample_n(95)
+summary(glm(Prop_female_LA~SexoLA, family=quasibinomial, data=datUA)) # not significant
+
+    # By Q:
+# (same datasetb by Q than 3.1)
+# Q1
+summary(Q1test)
+# Balance sample (n=9)
+set.seed(123)
+LA1testBAL <- Q2test %>% 
+  group_by(SexoLA) %>% 
+  sample_n(9)
+summary(glm(Prop_female_LA~SexoLA,family=quasibinomial,data=LA1testBAL))
+# Plot
+LQ1 <- ggplot(Q1test, aes(y = Prop_female_LA, x = SexoLA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q1") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Q2
+summary(Q2test) 
+# Balance sample (n=17)
+set.seed(123)
+LA2testBAL <- Q2test %>% 
+  group_by(SexoLA) %>% 
+  sample_n(17)
+summary(glm(Prop_female_LA~SexoLA,family=quasibinomial,data=LA2testBAL))
+# Plot
+LQ2 <- ggplot(Q2test, aes(y = Prop_female_LA, x = SexoLA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q2") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Q3
+summary(Q3test)
+# Balance sample (n=17)
+set.seed(123)
+LA3testBAL <- Q3test %>% 
+  group_by(SexoLA) %>% 
+  sample_n(17)
+summary(glm(Prop_female_LA~SexoLA,family=quasibinomial,data=LA3testBAL))
+# Plot
+LQ3 <- ggplot(Q3test, aes(y = Prop_female_LA, x = SexoLA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q3") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Q4
+summary(Q4test)
+# Balance sample (n=40)
+set.seed(123)
+LA4testBAL <- Q4test %>% 
+  group_by(SexoLA) %>% 
+  sample_n(40)
+summary(glm(Prop_female_LA~SexoLA,family=quasibinomial,data=LA4testBAL))
+# Plot
+LQ4 <- ggplot(Q4test, aes(y = Prop_female_LA, x = SexoLA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="Q4") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# NI
+summary(NItest)
+# Balance sample (n=12)
+LANItestBAL <- NItest %>% 
+  group_by(SexoLA) %>% 
+  sample_n(12)
+summary(glm(Prop_female_LA~SexoLA,family=quasibinomial,data=LANItestBAL))
+LNI <- ggplot(NItest, aes(y = Prop_female_LA, x = SexoLA)) + ylim(0,1)+
+  stat_summary(fun.data = "mean_cl_normal") +
+  labs(y = "Proportion of Female authors/paper", x="CH") +
+  theme_light(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Complete plot
+require(gridExtra)
+grid.arrange(LQ1,LQ2,LQ3,LQ4,LNI, ncol=5)
+
+
+
+# 4: Single-authored papers ----
+single <- subset(base, base$Ntot==1)
+summary(single)
