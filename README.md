@@ -1,6 +1,6 @@
 Scripts for Grosso et al.
 
-Article Title: 
+Article Title: Looking beneath the surface: Gender disparities revealed by publication patterns in South American Herpetology
 
 Journal Name: 	
 
