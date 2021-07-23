@@ -6,7 +6,6 @@ Journal Name: Amphibia-Reptilia
 
 Author names and affiliations:
 
-GROSSO J1, FRATANI J1, FONTANARROSA G2, CHULIVER PEREYRA M3, DUPORT-BRU AS1, SCHNEIDER RG4, CASAGRANDA MD1, FERRARO DP5, VICENTE N1, SALICA MJ6, PEREYRA L6, MEDINA R2,7, BESSA C8, SEMHAN R1, VERA MC9
 Jimena Grosso1,2,3, Jessica Fratani3, Gabriela Fontanarrosa4, Mariana Chuliver5, Ana Sofía Duport-Bru3,4, Rosio Gabriela Schneider6, María Dolores Casagranda3, Daiana Paola Ferraro7, Natalin Vicente3, María José Salica8, Laura Pereyra8, Regina Gabriela Medina4,9,10, Carla Bessa11, Romina Semhan3, Miriam Corina Vera12
 
 1 - Instituto de Ciencias Marinas y Limnológicas, Universidad Austral de Chile, Valdivia, Chile
